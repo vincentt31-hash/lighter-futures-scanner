@@ -2,6 +2,9 @@ import os
 
 # Bybit Indonesia V5 API base URL; override with BYBIT_BASE_URL if needed.
 BASE_URL = os.getenv("BYBIT_BASE_URL", "https://api.bybit.id").rstrip("/")
+WS_BASE_URL = os.getenv(
+    "BYBIT_WS_URL", "wss://stream.bybit.id/v5/public/linear"
+).rstrip("/")
 
 DEFAULT_CAPITAL = float(os.getenv("CAPITAL_USDT", "100"))
 DEFAULT_RISK_PERCENT = float(os.getenv("RISK_PERCENT", "1"))
