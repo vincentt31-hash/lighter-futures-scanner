@@ -29,18 +29,35 @@ This folder contains the V2 FastAPI backend.
 
 Supported market-manager intervals: `1`, `5`, `15`, `60`, `240`, and `D`.
 
-## Current signal strategy
+## Strategy profiles
 
-The current scanner strategy is the preserved **day-trade** profile:
+Use `POST /scan` with a `profile` field, or inspect `GET /strategy/profiles`.
 
-- Trend filter: 1H.
-- Entry trigger: 15M.
-- Uses closed candles, EMA/RSI/ATR, pullback and volume confirmation.
-- Default risk budget: 1% of capital.
-- Leverage is derived from stop distance and capped by the configured maximum and the strategy's liquidation-safety heuristic.
-- TP targets are at least 2R (TP1), followed by 3R and 4R extensions.
+| Profile | Trend timeframe | Entry timeframe |
+|---|---:|---:|
+| `scalping` | 5M | 1M |
+| `day_trade` (default) | 1H | 15M |
+| `swing` | 4H | 1H |
 
-Scalping (1M/5M) and swing-trade profiles are not implemented yet. The strategy's current stop-distance, confidence, and risk-sizing rules remain unchanged by the market-data migration.
+Each profile has independent RSI bands, pullback lookback, ATR stop multipliers, stop-distance bounds, and swing lookback. All profiles use closed candles, EMA/RSI/ATR, pullback/reclaim or rejection, and a soft volume confirmation factor. Legacy indicator field names are retained as aliases for existing Android clients; the new generic indicator fields identify the active profile's actual timeframes.
+
+Example request:
+
+```json
+{
+  "symbols": ["BTCUSDT", "XAUUSDT", "XAUTUSDT"],
+  "auto_top_volume": false,
+  "profile": "scalping",
+  "capital_usdt": 100,
+  "risk_percent": 1,
+  "max_leverage": 20,
+  "min_confidence": 60
+}
+```
+
+Default risk budget: 1% of capital. Leverage is derived from stop distance and capped by the configured maximum plus a conservative heuristic; this is not an exchange liquidation calculation. TP targets are at least 2R (TP1), followed by 3R and 4R extensions. Position size may be capped by the leverage limit, so estimated loss can be lower than the requested risk budget.
+
+These profiles are initial rule-based configurations, not backtested or optimized performance claims. Scalping can be especially sensitive to fees, spread, slippage, and latency; paper-test each profile before relying on it.
 
 ## Run on Windows
 
