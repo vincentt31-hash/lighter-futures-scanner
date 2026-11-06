@@ -15,6 +15,21 @@ The asset loads TradingView Lightweight Charts 4.2.2 from the pinned HTTPS CDN. 
 ```kotlin
 webView.settings.javaScriptEnabled = true
 webView.settings.domStorageEnabled = true
+webView.addJavascriptInterface(object {
+    @android.webkit.JavascriptInterface
+    fun onIntervalChange(interval: String) {
+        // Dispatch to your ViewModel/API client to fetch the selected interval.
+        // Example: viewModel.loadChart(symbol, interval)
+    }
+}, "AndroidChartBridge")
+webView.webViewClient = object : android.webkit.WebViewClient() {
+    override fun onPageFinished(view: android.webkit.WebView, url: String) {
+        view.evaluateJavascript(
+            "window.CuanChart && window.CuanChart.onIntervalChange(function(interval) { AndroidChartBridge.onIntervalChange(interval); })",
+            null
+        )
+    }
+}
 webView.loadUrl("file:///android_asset/chart_webview.html")
 ```
 
@@ -59,9 +74,8 @@ webView.post {
 The chart asset calls an optional JavaScript callback when a timeframe button is tapped. Connect it to the Android data layer and request the same endpoint with the selected Bybit interval:
 
 ```javascript
-window.CuanChart.onIntervalChange(function (interval) {
-  // Notify the Android layer to fetch /market/chart/{symbol}?interval={interval}
-});
+// Already wired in the Kotlin WebViewClient example above. The native bridge
+// should fetch /market/chart/{symbol}?interval={interval} and call setData().
 ```
 
 Supported interval values: `1`, `5`, `15`, `60`, `240`, and `D`.
