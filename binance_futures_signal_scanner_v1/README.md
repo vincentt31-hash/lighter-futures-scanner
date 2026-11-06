@@ -43,6 +43,8 @@ Each profile has independent RSI bands, pullback lookback, ATR stop multipliers,
 
 Every result now also includes `market_structure.trend_timeframe` and `market_structure.entry_timeframe` annotations: confirmed fractal swing highs/lows, structural bias, BOS/CHoCH event, buy-side/sell-side liquidity sweep, recent FVG zones, and recent support/resistance pivot levels. These are deterministic OHLCV heuristics, not exchange-provided order-flow data.
 
+Actionable LONG/SHORT candidates are passed through the exchange-aware risk engine using that contract's Bybit `tickSize`, `qtyStep`, `minOrderQty`, optional `minNotionalValue`, and `leverageFilter.maxLeverage`. The engine rounds prices and quantity, calculates estimated risk/margin, and changes a candidate to `NO_SIGNAL` if the resulting size violates the contract minimums. Results include `risk_validation` with the rounded values and validation notes. This remains a pre-trade estimate, not a guarantee of realized loss or liquidation price.
+
 Example request:
 
 ```json
