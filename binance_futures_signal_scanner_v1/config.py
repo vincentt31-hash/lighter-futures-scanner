@@ -1,6 +1,6 @@
 import os
 
-# Bybit Global V5 API; override only if intentionally using another region.
+# Bybit Indonesia V5 API base URL; override with BYBIT_BASE_URL if needed.
 BASE_URL = os.getenv("BYBIT_BASE_URL", "https://api.bybit.id").rstrip("/")
 
 DEFAULT_CAPITAL = float(os.getenv("CAPITAL_USDT", "100"))
