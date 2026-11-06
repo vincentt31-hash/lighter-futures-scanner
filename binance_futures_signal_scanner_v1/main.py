@@ -264,6 +264,7 @@ async def scan_one(
             "reason": str(exc),
             "last_price": latest_prices.get(symbol),
             "market_category": "linear",
+            "strategy_profile": request.profile,
         }
 
 
@@ -327,7 +328,9 @@ async def scan(request: ScanRequest):
             if symbol in live_prices
         },
         "results": results,
-        "strategy_profile": "day_trade",
+        "strategy_profile": request.profile,
+        "timeframe_trend": get_strategy_profile(request.profile)["trend_timeframe"],
+        "timeframe_entry": get_strategy_profile(request.profile)["entry_timeframe"],
     }
 
 
