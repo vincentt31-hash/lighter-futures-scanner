@@ -25,6 +25,7 @@ from .api.routes.market import router as market_router
 from .api.routes.health import router as health_router
 from .services.market_manager import market_manager
 from .services.normalizers import normalize_rest_klines
+from .risk_engine import size_linear_position
 
 logger = logging.getLogger(__name__)
 SCAN_CONCURRENCY = 5
@@ -218,12 +219,15 @@ async def scan_one(
         trend_interval = profile_cfg["trend_interval"]
         entry_interval = profile_cfg["entry_interval"]
         async with semaphore:
-            trend_rows, entry_rows = await asyncio.gather(
+            trend_rows, entry_rows, instrument_rows = await asyncio.gather(
                 market_manager.rest.get_klines(
                     symbol, trend_interval, 250, category="linear"
                 ),
                 market_manager.rest.get_klines(
                     symbol, entry_interval, 250, category="linear"
+                ),
+                market_manager.rest.get_instruments_info(
+                    category="linear", symbol=symbol
                 ),
             )
 
@@ -248,6 +252,66 @@ async def scan_one(
             min_confidence=request.min_confidence,
             profile=request.profile,
         )
+
+        instrument = next(
+            (
+                item for item in instrument_rows
+                if item.get("symbol", "").upper() == symbol
+                and item.get("status") == "Trading"
+                and item.get("contractType") == "LinearPerpetual"
+                and item.get("quoteCoin") == QUOTE_COIN
+                and item.get("settleCoin") == QUOTE_COIN
+            ),
+            None,
+        )
+        if result.get("signal") in ("LONG", "SHORT"):
+            if instrument is None:
+                result["status"] = "NO_SIGNAL"
+                result["signal"] = "NO_SIGNAL"
+                result["reason"] = "No active USDT linear contract metadata for exchange sizing"
+                result["risk_validation"] = {"tradeable_size": False}
+            else:
+                try:
+                    sizing = size_linear_position(
+                        side=result["signal"],
+                        entry=result["entry"],
+                        stop_loss=result["sl"],
+                        capital_usdt=request.capital_usdt,
+                        risk_percent=request.risk_percent,
+                        max_leverage=request.max_leverage,
+                        instrument=instrument,
+                        take_profits=[result["tp1"], result["tp2"], result["tp3"]],
+                    )
+                    result["risk_validation"] = sizing
+                    if sizing["tradeable_size"]:
+                        result["entry"] = float(sizing["entry_rounded"])
+                        result["sl"] = float(sizing["stop_loss_rounded"])
+                        result["stop_loss"] = float(sizing["stop_loss_rounded"])
+                        result["tp1"], result["tp2"], result["tp3"] = [
+                            float(value) for value in sizing["take_profits_rounded"]
+                        ]
+                        result["take_profit"] = result["tp1"]
+                        result["position_qty"] = float(sizing["quantity"])
+                        result["position_value"] = float(sizing["position_value_usdt"])
+                        result["notional_usdt"] = float(sizing["position_value_usdt"])
+                        result["margin_usdt"] = float(sizing["estimated_margin_usdt"])
+                        result["leverage"] = sizing["estimated_leverage"]
+                        result["risk_amount"] = float(sizing["risk_budget_usdt"])
+                        result["risk_budget_usdt"] = float(sizing["risk_budget_usdt"])
+                        result["estimated_loss"] = float(sizing["estimated_loss_at_stop_usdt"])
+                        result["estimated_risk_at_sl_usdt"] = float(sizing["estimated_loss_at_stop_usdt"])
+                    else:
+                        result["status"] = "NO_SIGNAL"
+                        result["signal"] = "NO_SIGNAL"
+                        result["reason"] = "; ".join(sizing["validation_errors"])
+                except ValueError as exc:
+                    result["status"] = "NO_SIGNAL"
+                    result["signal"] = "NO_SIGNAL"
+                    result["reason"] = f"Exchange risk validation failed: {exc}"
+                    result["risk_validation"] = {
+                        "tradeable_size": False,
+                        "validation_errors": [str(exc)],
+                    }
 
         if symbol in latest_prices:
             result["last_price"] = latest_prices[symbol]
