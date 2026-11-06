@@ -3,6 +3,7 @@ import unittest
 from binance_futures_signal_scanner_v1.strategy import analyze
 from binance_futures_signal_scanner_v1.market_structure import detect_fvg, find_swings
 from binance_futures_signal_scanner_v1.risk_engine import size_linear_position
+from binance_futures_signal_scanner_v1.chart_service import build_chart_payload
 from binance_futures_signal_scanner_v1.strategy_profiles import (
     get_strategy_profile,
     list_strategy_profiles,
@@ -122,6 +123,31 @@ class StrategyProfileTests(unittest.TestCase):
         self.assertEqual(result["position_value_usdt"], "500")
         self.assertEqual(result["estimated_margin_usdt"], "100")
         self.assertTrue(result["notional_capped_by_leverage"])
+
+    def test_chart_payload_contains_closed_candles_and_indicators(self):
+        candles = []
+        for index in range(60):
+            price = 100 + index * 0.25
+            candles.append({
+                "start_time": f"2026-11-06T00:{index % 60:02d}:00+00:00",
+                "open": str(price),
+                "high": str(price + 1),
+                "low": str(price - 1),
+                "close": str(price + 0.5),
+                "volume": "10",
+                "is_closed": True,
+            })
+        candles.append({
+            "start_time": "2026-11-06T02:00:00+00:00",
+            "open": "200", "high": "202", "low": "199",
+            "close": "201", "volume": "50", "is_closed": False,
+        })
+        result = build_chart_payload("BTCUSDT", "15", candles)
+        self.assertEqual(result["count"], 60)
+        self.assertEqual(len(result["candles"]), 60)
+        self.assertTrue(result["indicators"]["ema9"])
+        self.assertTrue(result["indicators"]["ema50"])
+        self.assertEqual(result["symbol"], "BTCUSDT")
 
     def test_rejects_wrong_side_stop(self):
         with self.assertRaises(ValueError):
