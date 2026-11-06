@@ -5,6 +5,7 @@ import logging
 from collections import defaultdict
 from typing import Any
 
+from ..config import BASE_URL, WS_BASE_URL
 from ..models.market import Candle, MarketEvent, Ticker
 from .bybit_rest import BybitREST
 from .bybit_websocket import BybitWebSocket
@@ -22,8 +23,8 @@ logger = logging.getLogger(__name__)
 class MarketManager:
     def __init__(
         self,
-        rest_base_url: str = "https://api.bybit.id",
-        ws_base_url: str = "wss://stream.bybit.id/v5/public/linear",
+        rest_base_url: str = BASE_URL,
+        ws_base_url: str = WS_BASE_URL,
         symbols: tuple[str, ...] = ("BTCUSDT", "XAUUSDT", "XAUTUSDT"),
         intervals: tuple[str, ...] = ("1", "5", "15", "60", "240", "D"),
     ) -> None:
@@ -46,9 +47,13 @@ class MarketManager:
         if self._started:
             return
         await self.rest.start()
-        self._status["rest"] = "connected"
+        try:
+            instruments = await self.rest.get_instruments_info(category="linear")
+        except Exception:
+            self._status["rest"] = "error"
+            raise
 
-        instruments = await self.rest.get_instruments_info(category="linear")
+        self._status["rest"] = "connected"
         self.registry.refresh(instruments)
         self._status["symbols_validated"] = True
         self._status["available_symbols"] = self.registry.available_symbols()
