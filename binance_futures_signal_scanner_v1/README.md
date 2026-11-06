@@ -45,6 +45,10 @@ Every result now also includes `market_structure.trend_timeframe` and `market_st
 
 Actionable LONG/SHORT candidates are passed through the exchange-aware risk engine using that contract's Bybit `tickSize`, `qtyStep`, `minOrderQty`, optional `minNotionalValue`, and `leverageFilter.maxLeverage`. The engine rounds prices and quantity, calculates estimated risk/margin, and changes a candidate to `NO_SIGNAL` if the resulting size violates the contract minimums. Results include `risk_validation` with the rounded values and validation notes. This remains a pre-trade estimate, not a guarantee of realized loss or liquidation price.
 
+### Chart data API
+
+`GET /market/chart/{symbol}?interval=15&limit=500` returns closed OHLCV candles in Unix seconds, volume bars, EMA 9/21/20/50 overlays, ATR 14, confirmed market-structure annotations, recent FVG zones, and pivot support/resistance levels. It is intended as the backend data contract for the Android WebView + TradingView Lightweight Charts client.
+
 Example request:
 
 ```json
