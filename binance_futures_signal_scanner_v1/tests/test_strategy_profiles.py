@@ -1,6 +1,7 @@
 import unittest
 
 from binance_futures_signal_scanner_v1.strategy import analyze
+from binance_futures_signal_scanner_v1.market_structure import detect_fvg, find_swings
 from binance_futures_signal_scanner_v1.strategy_profiles import (
     get_strategy_profile,
     list_strategy_profiles,
@@ -46,6 +47,24 @@ class StrategyProfileTests(unittest.TestCase):
             [item["id"] for item in list_strategy_profiles()],
             ["scalping", "day_trade", "swing"],
         )
+
+    def test_bullish_fvg_is_detected(self):
+        candles = [
+            {"high": 10, "low": 8},
+            {"high": 11, "low": 9},
+            {"high": 13, "low": 12},
+        ]
+        gaps = detect_fvg(candles)
+        self.assertEqual(len(gaps), 1)
+        self.assertEqual(gaps[0]["type"], "BULLISH_FVG")
+        self.assertEqual((gaps[0]["lower"], gaps[0]["upper"]), (10.0, 12.0))
+
+    def test_fractal_swing_high_is_confirmed(self):
+        values = [5, 6, 8, 7, 6, 5, 6]
+        candles = [{"high": v, "low": v - 2} for v in values]
+        swings = find_swings(candles, left=2, right=2)
+        self.assertEqual(swings["highs"][0]["index"], 2)
+        self.assertEqual(swings["highs"][0]["price"], 8.0)
 
 
 if __name__ == "__main__":
