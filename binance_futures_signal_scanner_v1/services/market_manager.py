@@ -5,16 +5,16 @@ import logging
 from collections import defaultdict
 from typing import Any
 
-from app.models.market import Candle, MarketEvent, Ticker
-from app.services.bybit_rest import BybitREST
-from app.services.bybit_websocket import BybitWebSocket
-from app.services.normalizers import (
+from ..models.market import Candle, MarketEvent, Ticker
+from .bybit_rest import BybitREST
+from .bybit_websocket import BybitWebSocket
+from .normalizers import (
     make_market_event,
     normalize_rest_klines,
     normalize_ws_kline,
     normalize_ws_ticker,
 )
-from app.services.symbol_registry import SymbolRegistry
+from .symbol_registry import SymbolRegistry
 
 logger = logging.getLogger(__name__)
 
