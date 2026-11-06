@@ -9,6 +9,7 @@ This folder contains the V2 FastAPI backend.
 - V2 market-data focus symbols: BTCUSDT, XAUUSDT, and XAUTUSDT. The market endpoint validates each against live instrument metadata; availability is not assumed.
 - The scanner can also select the highest 24-hour USDT turnover linear perpetual pairs, or use the manual watchlist.
 - REST and public WebSocket market data only. No API key, account access, or order execution is used.
+- Regional endpoints default to `https://api.bybit.id` and `wss://stream.bybit.id/v5/public/linear`; override them with `BYBIT_BASE_URL` and `BYBIT_WS_URL` when needed.
 
 ## Scanner endpoints
 
