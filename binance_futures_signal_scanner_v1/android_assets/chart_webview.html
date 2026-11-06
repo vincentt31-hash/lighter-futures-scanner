@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>CUAN Scanner Chart</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #0b1220; color: #e5e7eb; font-family: Arial, sans-serif; }
+    #root { display: flex; flex-direction: column; width: 100%; height: 100%; }
+    #toolbar { display: flex; align-items: center; gap: 6px; padding: 8px; overflow-x: auto; border-bottom: 1px solid #263244; }
+    button { border: 1px solid #334155; border-radius: 7px; padding: 7px 10px; color: #cbd5e1; background: #111c2e; font-size: 12px; }
+    button.active { color: #fff; border-color: #38bdf8; background: #12304a; }
+    #status { margin-left: auto; white-space: nowrap; color: #94a3b8; font-size: 11px; }
+    #chart { flex: 1; min-height: 0; width: 100%; }
+    #legend { display: flex; flex-wrap: wrap; gap: 10px; padding: 7px 10px; border-top: 1px solid #263244; color: #94a3b8; font-size: 11px; }
+    .dot { display: inline-block; width: 7px; height: 7px; margin-right: 4px; border-radius: 50%; }
+    #empty { position: absolute; inset: 50% 0 auto; transform: translateY(-50%); text-align: center; color: #64748b; font-size: 13px; pointer-events: none; }
+  </style>
+  <script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+<div id="root">
+  <div id="toolbar">
+    <button data-interval="1">1m</button>
+    <button data-interval="5">5m</button>
+    <button data-interval="15" class="active">15m</button>
+    <button data-interval="60">1h</button>
+    <button data-interval="240">4h</button>
+    <button data-interval="D">1D</button>
+    <span id="status">Waiting for chart data</span>
+  </div>
+  <div id="chart"></div>
+  <div id="empty">Waiting for chart data from CUAN Scanner</div>
+  <div id="legend">
+    <span><i class="dot" style="background:#38bdf8"></i>EMA 9</span>
+    <span><i class="dot" style="background:#a78bfa"></i>EMA 21</span>
+    <span><i class="dot" style="background:#f59e0b"></i>EMA 20</span>
+    <span><i class="dot" style="background:#f472b6"></i>EMA 50</span>
+    <span><i class="dot" style="background:#16a34a"></i>Support / LONG</span>
+    <span><i class="dot" style="background:#dc2626"></i>Resistance / SHORT</span>
+  </div>
+</div>
+<script>
+(function () {
+  const el = document.getElementById("chart");
+  const statusEl = document.getElementById("status");
+  const emptyEl = document.getElementById("empty");
+  if (!window.LightweightCharts) {
+    statusEl.textContent = "Chart library unavailable";
+    emptyEl.textContent = "Unable to load Lightweight Charts";
+    return;
+  }
+
+  const chart = LightweightCharts.createChart(el, {
+    width: el.clientWidth,
+    height: el.clientHeight,
+    layout: { background: { color: "#0b1220" }, textColor: "#cbd5e1", fontFamily: "Arial" },
+    grid: { vertLines: { color: "#172337" }, horzLines: { color: "#172337" } },
+    rightPriceScale: { borderColor: "#334155" },
+    timeScale: { borderColor: "#334155", timeVisible: true, secondsVisible: false },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    localization: { priceFormatter: value => Number(value).toLocaleString("en-US", { maximumFractionDigits: 8 }) }
+  });
+
+  const candles = chart.addCandlestickSeries({
+    upColor: "#16a34a", downColor: "#dc2626",
+    borderUpColor: "#16a34a", borderDownColor: "#dc2626",
+    wickUpColor: "#16a34a", wickDownColor: "#dc2626"
+  });
+  const volume = chart.addHistogramSeries({
+    priceFormat: { type: "volume" }, priceScaleId: "",
+    scaleMargins: { top: 0.82, bottom: 0 }
+  });
+  const ema9 = chart.addLineSeries({ color: "#38bdf8", lineWidth: 1, title: "EMA 9", lastValueVisible: false });
+  const ema21 = chart.addLineSeries({ color: "#a78bfa", lineWidth: 1, title: "EMA 21", lastValueVisible: false });
+  const ema20 = chart.addLineSeries({ color: "#f59e0b", lineWidth: 1, title: "EMA 20", lastValueVisible: false });
+  const ema50 = chart.addLineSeries({ color: "#f472b6", lineWidth: 1, title: "EMA 50", lastValueVisible: false });
+  let intervalCallback = null;
+  let structuralLines = [];
+  let signalLines = [];
+
+  function clearLines(series, refs) {
+    refs.forEach(line => { try { series.removePriceLine(line); } catch (_) {} });
+    refs.length = 0;
+  }
+  function addLevel(series, refs, price, title, color, style) {
+    const n = Number(price);
+    if (!Number.isFinite(n) || n <= 0) return;
+    refs.push(series.createPriceLine({
+      price: n, title, color, lineWidth: 1,
+      lineStyle: style || LightweightCharts.LineStyle.Dashed,
+      axisLabelVisible: true, lineVisible: true
+    }));
+  }
+  function setIntervalButton(value) {
+    document.querySelectorAll("[data-interval]").forEach(button => {
+      button.classList.toggle("active", button.dataset.interval === String(value));
+    });
+  }
+  document.querySelectorAll("[data-interval]").forEach(button => {
+    button.addEventListener("click", () => {
+      setIntervalButton(button.dataset.interval);
+      if (typeof intervalCallback === "function") intervalCallback(button.dataset.interval);
+    });
+  });
+
+  window.CuanChart = {
+    onIntervalChange(callback) { intervalCallback = callback; },
+    setData(data) {
+      if (!data || !Array.isArray(data.candles) || !data.candles.length) {
+        statusEl.textContent = "No closed candles";
+        emptyEl.style.display = "block";
+        return;
+      }
+      candles.setData(data.candles);
+      volume.setData(data.volume || []);
+      const indicators = data.indicators || {};
+      ema9.setData(indicators.ema9 || []);
+      ema21.setData(indicators.ema21 || []);
+      ema20.setData(indicators.ema20 || []);
+      ema50.setData(indicators.ema50 || []);
+      candles.setMarkers(data.markers || []);
+
+      clearLines(candles, structuralLines);
+      const sr = data.support_resistance || {};
+      (sr.support || []).forEach((price, index) => addLevel(candles, structuralLines, price, "S" + (index + 1), "#16a34a"));
+      (sr.resistance || []).forEach((price, index) => addLevel(candles, structuralLines, price, "R" + (index + 1), "#dc2626"));
+      (data.fvg_zones || []).forEach((zone, index) => {
+        addLevel(candles, structuralLines, zone.lower, "FVG L" + (index + 1), "#0ea5e9");
+        addLevel(candles, structuralLines, zone.upper, "FVG U" + (index + 1), "#0ea5e9");
+      });
+
+      statusEl.textContent = data.symbol + " · " + data.interval + " · " + data.count + " closed";
+      emptyEl.style.display = "none";
+      chart.timeScale().fitContent();
+    },
+    setSignalLevels(levels) {
+      clearLines(candles, signalLines);
+      if (!levels) return;
+      addLevel(candles, signalLines, levels.entry, "ENTRY", "#eab308", LightweightCharts.LineStyle.Solid);
+      addLevel(candles, signalLines, levels.sl, "STOP LOSS", "#ef4444", LightweightCharts.LineStyle.Solid);
+      ["tp1", "tp2", "tp3"].forEach((key, index) => {
+        addLevel(candles, signalLines, levels[key], "TP" + (index + 1), "#22c55e", LightweightCharts.LineStyle.Dotted);
+      });
+    },
+    resize() {
+      chart.applyOptions({ width: el.clientWidth, height: el.clientHeight });
+    }
+  };
+
+  if (window.ResizeObserver) {
+    new ResizeObserver(() => window.CuanChart.resize()).observe(el);
+  } else {
+    window.addEventListener("resize", () => window.CuanChart.resize());
+  }
+})();
+</script>
+</body>
+</html>
