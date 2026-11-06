@@ -295,7 +295,7 @@ async def scan_one(
                         result["position_value"] = float(sizing["position_value_usdt"])
                         result["notional_usdt"] = float(sizing["position_value_usdt"])
                         result["margin_usdt"] = float(sizing["estimated_margin_usdt"])
-                        result["leverage"] = sizing["estimated_leverage"]
+                        result["leverage"] = sizing["suggested_leverage"]
                         result["risk_amount"] = float(sizing["risk_budget_usdt"])
                         result["risk_budget_usdt"] = float(sizing["risk_budget_usdt"])
                         result["estimated_loss"] = float(sizing["estimated_loss_at_stop_usdt"])
