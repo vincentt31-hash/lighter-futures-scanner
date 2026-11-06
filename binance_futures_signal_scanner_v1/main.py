@@ -300,6 +300,22 @@ async def scan_one(
                         result["risk_budget_usdt"] = float(sizing["risk_budget_usdt"])
                         result["estimated_loss"] = float(sizing["estimated_loss_at_stop_usdt"])
                         result["estimated_risk_at_sl_usdt"] = float(sizing["estimated_loss_at_stop_usdt"])
+                        result["stop_distance_pct"] = sizing["stop_distance_pct"]
+                        qty = float(sizing["quantity"])
+                        if result["signal"] == "LONG":
+                            result["estimated_profit_tp1_usdt"] = round(
+                                (result["tp1"] - result["entry"]) * qty, 8
+                            )
+                            result["estimated_profit_tp2_usdt"] = round(
+                                (result["tp2"] - result["entry"]) * qty, 8
+                            )
+                        else:
+                            result["estimated_profit_tp1_usdt"] = round(
+                                (result["entry"] - result["tp1"]) * qty, 8
+                            )
+                            result["estimated_profit_tp2_usdt"] = round(
+                                (result["entry"] - result["tp2"]) * qty, 8
+                            )
                     else:
                         result["status"] = "NO_SIGNAL"
                         result["signal"] = "NO_SIGNAL"
