@@ -2,6 +2,7 @@ import unittest
 
 from binance_futures_signal_scanner_v1.strategy import analyze
 from binance_futures_signal_scanner_v1.market_structure import detect_fvg, find_swings
+from binance_futures_signal_scanner_v1.risk_engine import size_linear_position
 from binance_futures_signal_scanner_v1.strategy_profiles import (
     get_strategy_profile,
     list_strategy_profiles,
@@ -65,6 +66,56 @@ class StrategyProfileTests(unittest.TestCase):
         swings = find_swings(candles, left=2, right=2)
         self.assertEqual(swings["highs"][0]["index"], 2)
         self.assertEqual(swings["highs"][0]["price"], 8.0)
+
+    def _instrument(self, min_notional="5"):
+        return {
+            "lotSizeFilter": {
+                "qtyStep": "0.001",
+                "minOrderQty": "0.001",
+                "minNotionalValue": min_notional,
+            },
+            "priceFilter": {"tickSize": "0.5"},
+        }
+
+    def test_long_risk_size_respects_steps_and_risk_budget(self):
+        result = size_linear_position(
+            side="LONG", entry="100", stop_loss="95.12",
+            capital_usdt="1000", risk_percent="1", max_leverage="20",
+            instrument=self._instrument(), take_profits=["110.1"],
+        )
+        self.assertTrue(result["tradeable_size"])
+        self.assertEqual(result["entry_rounded"], "100")
+        self.assertEqual(result["stop_loss_rounded"], "95.5")
+        self.assertEqual(result["take_profits_rounded"], ["110.5"])
+        self.assertEqual(result["quantity"], "2.222")
+        self.assertLessEqual(float(result["estimated_loss_at_stop_usdt"]), 10.0)
+
+    def test_short_risk_size_rounds_stop_toward_entry(self):
+        result = size_linear_position(
+            side="SHORT", entry="100", stop_loss="105.12",
+            capital_usdt="1000", risk_percent="1", max_leverage="20",
+            instrument=self._instrument(), take_profits=["90.1"],
+        )
+        self.assertTrue(result["tradeable_size"])
+        self.assertEqual(result["stop_loss_rounded"], "105")
+        self.assertEqual(result["take_profits_rounded"], ["90"])
+
+    def test_rejects_below_minimum_notional(self):
+        result = size_linear_position(
+            side="LONG", entry="100", stop_loss="99",
+            capital_usdt="1", risk_percent="1", max_leverage="2",
+            instrument=self._instrument(min_notional="5"),
+        )
+        self.assertFalse(result["tradeable_size"])
+        self.assertTrue(any("minNotionalValue" in item for item in result["validation_errors"]))
+
+    def test_rejects_wrong_side_stop(self):
+        with self.assertRaises(ValueError):
+            size_linear_position(
+                side="LONG", entry="100", stop_loss="101",
+                capital_usdt="100", risk_percent="1", max_leverage="5",
+                instrument=self._instrument(),
+            )
 
 
 if __name__ == "__main__":
