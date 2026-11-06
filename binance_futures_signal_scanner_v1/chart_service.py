@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Any
+from datetime import datetime
 
 from .indicators import atr, ema
 from .market_structure import analyze_market_structure
@@ -19,7 +20,7 @@ def build_chart_payload(
             continue
         try:
             timestamp = int(
-                __import__("datetime").datetime.fromisoformat(
+                datetime.fromisoformat(
                     str(item["start_time"]).replace("Z", "+00:00")
                 ).timestamp()
             )
