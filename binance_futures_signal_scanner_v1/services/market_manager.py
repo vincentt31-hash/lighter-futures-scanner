@@ -137,11 +137,23 @@ class MarketManager:
     async def get_klines(self, symbol: str, interval: str, limit: int = 200) -> list[dict]:
         if not self._started:
             await self.start()
-        if symbol not in self.symbols:
-            raise ValueError(f"Unsupported configured symbol: {symbol}")
         if interval not in self.intervals:
             raise ValueError(f"Unsupported interval: {interval}")
-        if not self.registry.is_available(symbol):
+        if symbol in self.symbols:
+            available = self.registry.is_available(symbol)
+        else:
+            instruments = await self.rest.get_instruments_info(
+                category="linear", symbol=symbol
+            )
+            available = any(
+                item.get("symbol", "").upper() == symbol
+                and item.get("status") == "Trading"
+                and item.get("contractType") == "LinearPerpetual"
+                and item.get("quoteCoin") == "USDT"
+                and item.get("settleCoin") == "USDT"
+                for item in instruments
+            )
+        if not available:
             raise LookupError(f"{symbol} is not available as a Bybit USDT perpetual.")
 
         rows = await self.rest.get_klines(symbol, interval, limit, category="linear")
