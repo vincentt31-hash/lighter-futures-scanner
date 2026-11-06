@@ -96,7 +96,16 @@ def size_linear_position(
     stop_fraction = distance / rounded_entry
     risk_budget = capital * risk_pct / Decimal("100")
     target_notional = risk_budget / stop_fraction
-    leverage = min(leverage_cap, Decimal("125"))
+    leverage_filter = instrument.get("leverageFilter") or {}
+    exchange_max_raw = leverage_filter.get("maxLeverage")
+    exchange_max = (
+        _d(exchange_max_raw, "exchange max leverage")
+        if exchange_max_raw not in (None, "")
+        else Decimal("125")
+    )
+    leverage = min(leverage_cap, exchange_max, Decimal("125"))
+    if leverage < 1:
+        raise ValueError("Effective max leverage is below 1")
     leverage_notional_cap = capital * leverage
     notional = min(target_notional, leverage_notional_cap)
     raw_qty = notional / rounded_entry
@@ -119,8 +128,12 @@ def size_linear_position(
 
     rounded_notional = quantity * rounded_entry
     estimated_loss = quantity * distance
-    estimated_margin = rounded_notional / leverage
-    actual_leverage = rounded_notional / capital if capital else Decimal("0")
+    leverage_setting = max(
+        Decimal("1"),
+        min(leverage, (rounded_notional / capital).to_integral_value(rounding=ROUND_CEILING))
+    ) if rounded_notional > 0 else Decimal("1")
+    estimated_margin = rounded_notional / leverage_setting
+    actual_leverage = leverage_setting
     reasons: list[str] = []
 
     if quantity < min_qty:
@@ -145,8 +158,9 @@ def size_linear_position(
         "position_value_usdt": _fmt(rounded_notional),
         "risk_budget_usdt": _fmt(risk_budget),
         "estimated_loss_at_stop_usdt": _fmt(estimated_loss),
+        "suggested_leverage": float(actual_leverage),
         "estimated_margin_usdt": _fmt(estimated_margin),
-        "estimated_leverage": round(float(actual_leverage), 4),
+        "exchange_max_leverage": float(exchange_max),
         "leverage_cap": float(leverage),
         "stop_distance_pct": round(float(stop_fraction * 100), 6),
         "risk_budget_utilization_pct": round(
