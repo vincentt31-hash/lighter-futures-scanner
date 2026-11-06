@@ -203,10 +203,14 @@ def analyze(
             f"{trend_tf} downtrend, waiting for {entry_tf} pullback + EMA rejection"
         )
 
-    stop_floor = max(cfg["atr_floor_mult"] * atr_t, cfg["min_stop_pct"] * entry)
+    max_stop_distance = cfg["max_stop_pct"] * entry
+    stop_floor = min(
+        max(cfg["atr_floor_mult"] * atr_t, cfg["min_stop_pct"] * entry),
+        max_stop_distance,
+    )
     stop_cap = max(
         stop_floor,
-        min(cfg["atr_cap_mult"] * atr_t, cfg["max_stop_pct"] * entry),
+        min(cfg["atr_cap_mult"] * atr_t, max_stop_distance),
     )
     swing = ch[-cfg["swing_lookback"]:]
 
