@@ -3,6 +3,7 @@ from typing import Any, Dict, List
 
 from .indicators import ema, rsi, atr
 from .strategy_profiles import get_strategy_profile
+from .market_structure import analyze_market_structure
 
 # Hard floor: all targets are at least 1:2.
 MIN_RR_FLOOR = 2.0
@@ -34,6 +35,9 @@ def analyze(
     trend_slow_period = cfg["trend_slow_ema"]
     entry_fast_period = cfg["entry_fast_ema"]
     entry_slow_period = cfg["entry_slow_ema"]
+
+    structure_trend: Dict[str, Any] = {"bias": "UNKNOWN", "event": "NONE", "liquidity_sweep": "NONE"}
+    structure_entry: Dict[str, Any] = {"bias": "UNKNOWN", "event": "NONE", "liquidity_sweep": "NONE"}
 
     indicators_out: Dict[str, Any] = {
         "ema_trend_fast": None,
@@ -68,6 +72,10 @@ def analyze(
             "trend": indicators_out["trend"],
             "trend_1h": indicators_out["trend"],
             "indicators": indicators_out,
+            "market_structure": {
+                "trend_timeframe": structure_trend,
+                "entry_timeframe": structure_entry,
+            },
         }
 
     if not candles_trend or not candles_entry:
@@ -87,6 +95,9 @@ def analyze(
 
     if len(ch) < cfg["min_trend_candles"] or len(ce) < cfg["min_entry_candles"]:
         return no_signal("Insufficient closed candles")
+
+    structure_trend = analyze_market_structure(ch)
+    structure_entry = analyze_market_structure(ce)
 
     try:
         close_trend = [float(c["close"]) for c in ch]
@@ -316,4 +327,8 @@ def analyze(
         "timeframe_entry": entry_tf,
         "timeframe_trend": trend_tf,
         "indicators": indicators_out,
+        "market_structure": {
+            "trend_timeframe": structure_trend,
+            "entry_timeframe": structure_entry,
+        },
     }
