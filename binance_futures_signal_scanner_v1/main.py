@@ -20,6 +20,7 @@ from .config import (
 )
 from .bybit import tradingview_symbol
 from .strategy import analyze
+from .strategy_profiles import get_strategy_profile, list_strategy_profiles
 from .api.routes.market import router as market_router
 from .api.routes.health import router as health_router
 from .services.market_manager import market_manager
@@ -63,6 +64,7 @@ class ScanRequest(BaseModel):
     risk_percent: float = Field(default=DEFAULT_RISK_PERCENT, gt=0, le=10)
     max_leverage: float = Field(default=MAX_LEVERAGE, ge=1, le=125)
     min_confidence: int = Field(default=MIN_CONFIDENCE, ge=0, le=100)
+    profile: str = Field(default="day_trade", description="scalping, day_trade, or swing")
 
 
 def _normalize_symbol(symbol: str) -> str:
@@ -152,6 +154,7 @@ def root():
         "quote_coin": QUOTE_COIN,
         "default_watchlist": WATCHLIST,
         "strategy_profile": "day_trade",
+        "available_strategy_profiles": list_strategy_profiles(),
         "timeframe_trend": "1h",
         "timeframe_entry": "15m",
         "risk_percent_default": DEFAULT_RISK_PERCENT,
@@ -193,6 +196,12 @@ async def prices():
     }
 
 
+@app.get("/strategy/profiles")
+def strategy_profiles():
+    """List supported scanner profiles and their timeframes."""
+    return {"default": "day_trade", "profiles": list_strategy_profiles()}
+
+
 @app.get("/scan")
 async def scan_default():
     return await scan(ScanRequest())
@@ -205,35 +214,39 @@ async def scan_one(
     semaphore: asyncio.Semaphore,
 ) -> dict:
     try:
+        profile_cfg = get_strategy_profile(request.profile)
+        trend_interval = profile_cfg["trend_interval"]
+        entry_interval = profile_cfg["entry_interval"]
         async with semaphore:
-            h1_rows, m15_rows = await asyncio.gather(
+            trend_rows, entry_rows = await asyncio.gather(
                 market_manager.rest.get_klines(
-                    symbol, "60", 250, category="linear"
+                    symbol, trend_interval, 250, category="linear"
                 ),
                 market_manager.rest.get_klines(
-                    symbol, "15", 250, category="linear"
+                    symbol, entry_interval, 250, category="linear"
                 ),
             )
 
-        # REST klines are normalized into oldest-to-newest order. The strategy
-        # excludes the newest (possibly still-forming) candle by default.
-        h1 = [
+        # REST klines are normalized oldest-to-newest; the strategy excludes
+        # the still-forming candle by default.
+        trend_candles = [
             candle.model_dump(mode="python")
-            for candle in normalize_rest_klines(h1_rows, symbol, "60")
+            for candle in normalize_rest_klines(trend_rows, symbol, trend_interval)
         ]
-        m15 = [
+        entry_candles = [
             candle.model_dump(mode="python")
-            for candle in normalize_rest_klines(m15_rows, symbol, "15")
+            for candle in normalize_rest_klines(entry_rows, symbol, entry_interval)
         ]
 
         result = analyze(
             symbol,
-            h1,
-            m15,
+            trend_candles,
+            entry_candles,
             capital=request.capital_usdt,
             risk_percent=request.risk_percent,
             max_leverage=request.max_leverage,
             min_confidence=request.min_confidence,
+            profile=request.profile,
         )
 
         if symbol in latest_prices:
@@ -257,6 +270,8 @@ async def scan_one(
 @app.post("/scan")
 async def scan(request: ScanRequest):
     try:
+        # Validate profile before making any exchange calls.
+        get_strategy_profile(request.profile)
         eligible, tickers = await get_linear_market_snapshot()
         symbols = _select_symbols(request, eligible, tickers)
         live_prices = _prices_from_tickers(eligible, tickers)
@@ -268,6 +283,7 @@ async def scan(request: ScanRequest):
             "selection": _selection_name(request),
             "quote_coin": QUOTE_COIN,
             "market_category": "linear",
+            "strategy_profile": request.profile,
             "error": str(exc),
             "results": [],
         }
