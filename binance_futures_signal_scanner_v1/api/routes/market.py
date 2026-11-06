@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 
-from app.services.market_manager import market_manager
+from ...services.market_manager import market_manager
+from ...chart_service import build_chart_payload
 
 router = APIRouter(tags=["market"])
 
@@ -22,7 +23,7 @@ async def get_overview():
 @router.get("/market/klines/{symbol}")
 async def get_klines(
     symbol: str,
-    interval: str = Query("15", description="Bybit interval: 1, 3, 5, 15, 30, 60, 120, 240, 360, 720, D, W, M"),
+    interval: str = Query("15", description="Supported intervals: 1, 5, 15, 60, 240, D"),
     limit: int = Query(200, ge=1, le=1000),
 ):
     symbol = symbol.upper()
@@ -34,6 +35,25 @@ async def get_klines(
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Unable to retrieve klines: {exc}")
+
+
+@router.get("/market/chart/{symbol}")
+async def get_chart_data(
+    symbol: str,
+    interval: str = Query("15", description="Supported intervals: 1, 5, 15, 60, 240, D"),
+    limit: int = Query(500, ge=50, le=1000),
+):
+    """Return closed candles, EMA/ATR overlays, FVG and structure for chart clients."""
+    symbol = symbol.upper()
+    try:
+        raw_candles = await market_manager.get_klines(symbol, interval, limit)
+        return build_chart_payload(symbol, interval, raw_candles)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Unable to build chart data: {exc}")
 
 
 @router.websocket("/ws/market")

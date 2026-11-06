@@ -1,12 +1,88 @@
-# Scalping strategy update
+# CUAN SCANNER V2 — Backend Foundation
 
-This revision changes the signal strategy to 1-minute entries with a 5-minute trend filter and a 2R main take-profit target.
+This folder contains the V2 FastAPI backend.
 
-- TP1: 1R partial target
-- TP2: 2R main target (requested RR 1:2)
-- TP3: 3R extension
-- SL: tight structure/ATR-based stop
-- Uses only completed candles
-- Keeps the existing scanner endpoint shape and legacy TP fields for compatibility
+## Market-data architecture
 
-The upload included the scanner API/strategy/data adapter and indicators, but did not include notification delivery or signal-history persistence/UI modules. Those components were therefore not edited; their integration cannot be verified from the supplied files. This scanner remains signal-only and currently uses Bybit Indonesia spot market data, not authenticated Futures execution.
+- Provider: Bybit Indonesia V5 public market-data API.
+- Scanner market category: USDT linear perpetual contracts.
+- V2 market-data focus symbols: BTCUSDT, XAUUSDT, and XAUTUSDT. The market endpoint validates each against live instrument metadata; availability is not assumed.
+- The scanner can also select the highest 24-hour USDT turnover linear perpetual pairs, or use the manual watchlist.
+- REST and public WebSocket market data only. No API key, account access, or order execution is used.
+- Regional endpoints default to `https://api.bybit.id` and `wss://stream.bybit.id/v5/public/linear`; override them with `BYBIT_BASE_URL` and `BYBIT_WS_URL` when needed.
+
+## Scanner endpoints
+
+- `GET /health` — backend and market-data connection state.
+- `GET /watchlist` — current eligible linear perpetual symbols, ranked by 24-hour turnover or filtered from the manual watchlist.
+- `GET /prices` — current public ticker prices for eligible USDT linear perpetuals.
+- `GET /scan` — run the default signal scan.
+- `POST /scan` — run a scan with custom symbols, capital, risk, leverage cap, and confidence threshold.
+- `GET /docs` — interactive API documentation.
+
+## V2 live market endpoints
+
+- `GET /market/symbols` — validates the configured focus symbols against live linear instrument metadata.
+- `GET /market/overview` — latest in-memory ticker and kline snapshots.
+- `GET /market/klines/{symbol}?interval=15&limit=200` — normalized historical candles.
+- `WS /ws/market` — public ticker and kline events for connected clients.
+
+Supported market-manager intervals: `1`, `5`, `15`, `60`, `240`, and `D`.
+
+## Strategy profiles
+
+Use `POST /scan` with a `profile` field, or inspect `GET /strategy/profiles`.
+
+| Profile | Trend timeframe | Entry timeframe |
+|---|---:|---:|
+| `scalping` | 5M | 1M |
+| `day_trade` (default) | 1H | 15M |
+| `swing` | 4H | 1H |
+
+Each profile has independent RSI bands, pullback lookback, ATR stop multipliers, stop-distance bounds, and swing lookback. All profiles use closed candles, EMA/RSI/ATR, pullback/reclaim or rejection, and a soft volume confirmation factor. Legacy indicator field names are retained as aliases for existing Android clients; the new generic indicator fields identify the active profile's actual timeframes.
+
+Every result now also includes `market_structure.trend_timeframe` and `market_structure.entry_timeframe` annotations: confirmed fractal swing highs/lows, structural bias, BOS/CHoCH event, buy-side/sell-side liquidity sweep, recent FVG zones, and recent support/resistance pivot levels. These are deterministic OHLCV heuristics, not exchange-provided order-flow data.
+
+Actionable LONG/SHORT candidates are passed through the exchange-aware risk engine using that contract's Bybit `tickSize`, `qtyStep`, `minOrderQty`, optional `minNotionalValue`, and `leverageFilter.maxLeverage`. The engine rounds prices and quantity, calculates estimated risk/margin, and changes a candidate to `NO_SIGNAL` if the resulting size violates the contract minimums. Results include `risk_validation` with the rounded values and validation notes. This remains a pre-trade estimate, not a guarantee of realized loss or liquidation price.
+
+### Chart data API
+
+`GET /market/chart/{symbol}?interval=15&limit=500` returns closed OHLCV candles in Unix seconds, volume bars, EMA 9/21/20/50 overlays, ATR 14, confirmed market-structure annotations, recent FVG zones, and pivot support/resistance levels. It is intended as the backend data contract for the Android WebView + TradingView Lightweight Charts client.
+
+Example request:
+
+```json
+{
+  "symbols": ["BTCUSDT", "XAUUSDT", "XAUTUSDT"],
+  "auto_top_volume": false,
+  "profile": "scalping",
+  "capital_usdt": 100,
+  "risk_percent": 1,
+  "max_leverage": 20,
+  "min_confidence": 60
+}
+```
+
+Default risk budget: 1% of capital. Leverage is derived from stop distance and capped by the configured maximum plus a conservative heuristic; this is not an exchange liquidation calculation. TP targets are at least 2R (TP1), followed by 3R and 4R extensions. Position size may be capped by the leverage limit, so estimated loss can be lower than the requested risk budget.
+
+These profiles are initial rule-based configurations, not backtested or optimized performance claims. Scalping can be especially sensitive to fees, spread, slippage, and latency; paper-test each profile before relying on it.
+
+## Run on Windows
+
+From the repository root, run `binance_futures_signal_scanner_v1/run_windows.bat`.
+
+Or run manually from the repository root:
+
+```bat
+py -m venv .venv
+.venv\Scripts\activate
+python -m pip install --upgrade pip
+pip install -r binance_futures_signal_scanner_v1\requirements.txt
+uvicorn binance_futures_signal_scanner_v1.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Then open `http://127.0.0.1:8000/docs`.
+
+## Important scope
+
+This is a signal-only scanner. It does not authenticate to a trading account, place or manage orders, or guarantee execution or outcomes. The new linear feed and scanner data adapter are integrated, but live runtime validation against the exchange and Android-client integration still need to be tested.

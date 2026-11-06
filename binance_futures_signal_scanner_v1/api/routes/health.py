@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.services.market_manager import market_manager
+from ...services.market_manager import market_manager
 
 router = APIRouter(tags=["health"])
 
