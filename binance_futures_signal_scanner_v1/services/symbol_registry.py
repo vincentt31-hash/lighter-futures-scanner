@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.models.market import InstrumentStatus
+from ..models.market import InstrumentStatus
 
 
 class SymbolRegistry:
