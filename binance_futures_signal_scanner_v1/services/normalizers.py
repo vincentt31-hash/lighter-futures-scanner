@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from app.models.market import Candle, MarketEvent, Ticker
+from ..models.market import Candle, MarketEvent, Ticker
 
 
 def to_decimal(value: Any) -> Decimal | None:
