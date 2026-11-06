@@ -121,7 +121,7 @@ class StrategyProfileTests(unittest.TestCase):
         self.assertEqual(result["leverage_cap"], 5.0)
         self.assertEqual(result["suggested_leverage"], 5.0)
         self.assertEqual(result["position_value_usdt"], "5000")
-        self.assertEqual(result["estimated_margin_usdt"], "100")
+        self.assertEqual(result["estimated_margin_usdt"], "1000")
         self.assertTrue(result["notional_capped_by_leverage"])
 
     def test_chart_payload_contains_closed_candles_and_indicators(self):
