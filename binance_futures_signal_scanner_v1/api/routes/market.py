@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 
-from app.services.market_manager import market_manager
+from ...services.market_manager import market_manager
 
 router = APIRouter(tags=["market"])
 
@@ -22,7 +22,7 @@ async def get_overview():
 @router.get("/market/klines/{symbol}")
 async def get_klines(
     symbol: str,
-    interval: str = Query("15", description="Bybit interval: 1, 3, 5, 15, 30, 60, 120, 240, 360, 720, D, W, M"),
+    interval: str = Query("15", description="Supported intervals: 1, 5, 15, 60, 240, D"),
     limit: int = Query(200, ge=1, le=1000),
 ):
     symbol = symbol.upper()
