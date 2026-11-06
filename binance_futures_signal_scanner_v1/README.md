@@ -41,6 +41,8 @@ Use `POST /scan` with a `profile` field, or inspect `GET /strategy/profiles`.
 
 Each profile has independent RSI bands, pullback lookback, ATR stop multipliers, stop-distance bounds, and swing lookback. All profiles use closed candles, EMA/RSI/ATR, pullback/reclaim or rejection, and a soft volume confirmation factor. Legacy indicator field names are retained as aliases for existing Android clients; the new generic indicator fields identify the active profile's actual timeframes.
 
+Every result now also includes `market_structure.trend_timeframe` and `market_structure.entry_timeframe` annotations: confirmed fractal swing highs/lows, structural bias, BOS/CHoCH event, buy-side/sell-side liquidity sweep, recent FVG zones, and recent support/resistance pivot levels. These are deterministic OHLCV heuristics, not exchange-provided order-flow data.
+
 Example request:
 
 ```json
