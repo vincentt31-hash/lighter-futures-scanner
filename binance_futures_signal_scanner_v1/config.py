@@ -9,10 +9,10 @@ MAX_LEVERAGE = float(os.getenv("MAX_LEVERAGE", "20"))
 # New scoring: base 60, max 90. 75 filters out many valid setups.
 MIN_CONFIDENCE = int(os.getenv("MIN_CONFIDENCE", "60"))
 
-# Active Bybit Indonesia USDT spot pairs only.
+# Manual watchlist for active Bybit Indonesia USDT linear perpetual pairs.
 WATCHLIST = [
     s.strip().upper().replace("/", "").replace(".P", "")
-    for s in os.getenv("WATCHLIST", "BTCUSDT,ETHUSDT,SOLUSDT").split(",")
+    for s in os.getenv("WATCHLIST", "BTCUSDT,XAUUSDT,XAUTUSDT").split(",")
     if s.strip()
 ]
 AUTO_TOP_VOLUME = os.getenv("AUTO_TOP_VOLUME", "true").lower() in ("1", "true", "yes")
