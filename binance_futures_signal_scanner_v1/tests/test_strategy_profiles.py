@@ -114,7 +114,7 @@ class StrategyProfileTests(unittest.TestCase):
         instrument["leverageFilter"] = {"maxLeverage": "5"}
         result = size_linear_position(
             side="LONG", entry="100", stop_loss="99",
-            capital_usdt="100", risk_percent="1", max_leverage="20",
+            capital_usdt="1000", risk_percent="1", max_leverage="20",
             instrument=instrument,
         )
         self.assertEqual(result["leverage_cap"], 5.0)
