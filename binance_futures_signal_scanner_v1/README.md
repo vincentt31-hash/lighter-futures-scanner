@@ -1,31 +1,45 @@
 # CUAN SCANNER V2 — Backend Foundation
 
-This folder contains the V2 FastAPI backend foundation.
+This folder contains the V2 FastAPI backend.
 
 ## Market-data architecture
 
 - Provider: Bybit Indonesia V5 public market-data API.
-- New V2 market feed: USDT linear category.
-- Configured candidate instruments: BTCUSDT, XAUUSDT, XAUTUSDT. The backend validates each instrument against live exchange metadata; availability is not assumed.
-- REST market data and public WebSocket stream; no API key is required for these public endpoints.
-- No order placement, account access, or authenticated Futures execution.
+- Scanner market category: USDT linear perpetual contracts.
+- V2 market-data focus symbols: BTCUSDT, XAUUSDT, and XAUTUSDT. The market endpoint validates each against live instrument metadata; availability is not assumed.
+- The scanner can also select the highest 24-hour USDT turnover linear perpetual pairs, or use the manual watchlist.
+- REST and public WebSocket market data only. No API key, account access, or order execution is used.
 
-## V2 market endpoints
+## Scanner endpoints
 
 - `GET /health` — backend and market-data connection state.
-- `GET /market/symbols` — validates configured symbols against live linear instrument metadata.
+- `GET /watchlist` — current eligible linear perpetual symbols, ranked by 24-hour turnover or filtered from the manual watchlist.
+- `GET /prices` — current public ticker prices for eligible USDT linear perpetuals.
+- `GET /scan` — run the default signal scan.
+- `POST /scan` — run a scan with custom symbols, capital, risk, leverage cap, and confidence threshold.
+- `GET /docs` — interactive API documentation.
+
+## V2 live market endpoints
+
+- `GET /market/symbols` — validates the configured focus symbols against live linear instrument metadata.
 - `GET /market/overview` — latest in-memory ticker and kline snapshots.
 - `GET /market/klines/{symbol}?interval=15&limit=200` — normalized historical candles.
 - `WS /ws/market` — public ticker and kline events for connected clients.
-- `GET /docs` — interactive API documentation.
 
 Supported market-manager intervals: `1`, `5`, `15`, `60`, `240`, and `D`.
 
-## Legacy scanner compatibility
+## Current signal strategy
 
-The existing `/scan`, `/watchlist`, and `/prices` routes are retained for compatibility. They still use the legacy spot-market adapter and the existing 1H/15M day-trade strategy. They are **not yet migrated** to the new USDT linear market feed. The scanner remains signal-only.
+The current scanner strategy is the preserved **day-trade** profile:
 
-The strategy module and its response shape should be preserved while the market-data adapter and signal timeframes are migrated in a separate step. The earlier 1M/5M scalping plan is not yet reflected in the current legacy `/scan` endpoint.
+- Trend filter: 1H.
+- Entry trigger: 15M.
+- Uses closed candles, EMA/RSI/ATR, pullback and volume confirmation.
+- Default risk budget: 1% of capital.
+- Leverage is derived from stop distance and capped by the configured maximum and the strategy's liquidation-safety heuristic.
+- TP targets are at least 2R (TP1), followed by 3R and 4R extensions.
+
+Scalping (1M/5M) and swing-trade profiles are not implemented yet. The strategy's current stop-distance, confidence, and risk-sizing rules remain unchanged by the market-data migration.
 
 ## Run on Windows
 
@@ -43,6 +57,6 @@ uvicorn binance_futures_signal_scanner_v1.main:app --host 127.0.0.1 --port 8000 
 
 Then open `http://127.0.0.1:8000/docs`.
 
-## Current scope
+## Important scope
 
-Phase 1 is public market-data plumbing and API integration. Signal-engine migration, risk sizing against linear contract filters, chart overlays, persistence, notifications, Android integration, and any authenticated trading features remain separate work. Do not treat a generated signal as a guaranteed trade outcome.
+This is a signal-only scanner. It does not authenticate to a trading account, place or manage orders, or guarantee execution or outcomes. The new linear feed and scanner data adapter are integrated, but live runtime validation against the exchange and Android-client integration still need to be tested.
