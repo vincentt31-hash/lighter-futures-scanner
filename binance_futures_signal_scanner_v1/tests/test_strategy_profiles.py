@@ -109,6 +109,20 @@ class StrategyProfileTests(unittest.TestCase):
         self.assertFalse(result["tradeable_size"])
         self.assertTrue(any("minNotionalValue" in item for item in result["validation_errors"]))
 
+    def test_exchange_max_leverage_caps_notional_and_margin(self):
+        instrument = self._instrument()
+        instrument["leverageFilter"] = {"maxLeverage": "5"}
+        result = size_linear_position(
+            side="LONG", entry="100", stop_loss="99",
+            capital_usdt="100", risk_percent="1", max_leverage="20",
+            instrument=instrument,
+        )
+        self.assertEqual(result["leverage_cap"], 5.0)
+        self.assertEqual(result["suggested_leverage"], 5.0)
+        self.assertEqual(result["position_value_usdt"], "500")
+        self.assertEqual(result["estimated_margin_usdt"], "100")
+        self.assertTrue(result["notional_capped_by_leverage"])
+
     def test_rejects_wrong_side_stop(self):
         with self.assertRaises(ValueError):
             size_linear_position(
