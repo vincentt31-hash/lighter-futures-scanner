@@ -57,8 +57,9 @@ class BybitREST:
         self,
         category: str = "linear",
         limit: int = 1000,
+        symbol: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Fetch all instrument pages for the requested category."""
+        """Fetch instrument metadata, optionally narrowed to one symbol."""
         instruments: list[dict[str, Any]] = []
         cursor: str | None = None
 
@@ -67,6 +68,8 @@ class BybitREST:
                 "category": category,
                 "limit": min(max(limit, 1), 1000),
             }
+            if symbol:
+                params["symbol"] = symbol.upper()
             if cursor:
                 params["cursor"] = cursor
 
